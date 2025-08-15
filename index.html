@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIO System Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            height: 100vh;
+            gap: 2px;
+        }
+        
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .panel h3 {
+            color: #64ffda;
+            font-size: 16px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .camera-view {
+            position: relative;
+            height: calc(100% - 40px);
+        }
+        
+        .stereo-container {
+            display: flex;
+            height: 100%;
+            gap: 10px;
+        }
+        
+        .camera-feed {
+            flex: 1;
+            background: #000;
+            border: 1px solid #333;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .camera-label {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: rgba(100, 255, 218, 0.8);
+            color: #000;
+            padding: 2px 6px;
+            font-size: 10px;
+            border-radius: 3px;
+        }
+        
+        .feature-point {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 2s infinite;
+        }
+        
+        .tracked-feature {
+            background: #51cf66 !important;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 0.7; transform: translate(-50%, -50%) scale(1.2); }
+        }
+        
+        .trajectory-3d {
+            height: calc(100% - 40px);
+            background: #000;
+            border: 1px solid #333;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .path-line {
+            stroke: #64ffda;
+            stroke-width: 2;
+            fill: none;
+            filter: drop-shadow(0 0 3px #64ffda);
+        }
+        
+        .current-position {
+            fill: #ff6b6b;
+            filter: drop-shadow(0 0 5px #ff6b6b);
+        }
+        
+        .keyframe {
+            fill: #ffd93d;
+            filter: drop-shadow(0 0 3px #ffd93d);
+        }
+        
+        .grid-line {
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 1;
+        }
+        
+        .occupancy-map {
+            height: calc(100% - 40px);
+            background: #000;
+            border: 1px solid #333;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .occupied-cell {
+            fill: #ff6b6b;
+            opacity: 0.7;
+        }
+        
+        .free-cell {
+            fill: #51cf66;
+            opacity: 0.3;
+        }
+        
+        .status-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            height: calc(100% - 40px);
+        }
+        
+        .metric-group {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            padding: 10px;
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        
+        .metric-label {
+            color: #aaa;
+        }
+        
+        .metric-value {
+            color: #64ffda;
+            font-weight: bold;
+        }
+        
+        .health-bar {
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #ffd93d, #51cf66);
+            transition: width 0.3s ease;
+        }
+        
+        .imu-display {
+            margin-top: 10px;
+        }
+        
+        .imu-axis {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+        
+        .axis-label {
+            width: 30px;
+            color: #aaa;
+        }
+        
+        .axis-bar {
+            flex: 1;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            position: relative;
+            margin: 0 10px;
+        }
+        
+        .axis-value {
+            position: absolute;
+            height: 100%;
+            border-radius: 2px;
+            transition: all 0.1s ease;
+        }
+        
+        .gyro-x { background: #ff6b6b; }
+        .gyro-y { background: #51cf66; }
+        .gyro-z { background: #339af0; }
+        .accel-x { background: #ff8cc8; }
+        .accel-y { background: #8ce99a; }
+        .accel-z { background: #74c0fc; }
+        
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+        
+        .btn {
+            background: rgba(100, 255, 218, 0.2);
+            border: 1px solid #64ffda;
+            color: #64ffda;
+            padding: 8px 16px;
+            margin-left: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: rgba(100, 255, 218, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .btn.active {
+            background: #64ffda;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button class="btn active" onclick="toggleSimulation()">Start VIO</button>
+        <button class="btn" onclick="resetSystem()">Reset</button>
+        <button class="btn" onclick="toggleFeatures()">Toggle Features</button>
+    </div>
+    
+    <div class="container">
+        <!-- Stereo Camera View -->
+        <div class="panel">
+            <h3>Stereo Camera Feed</h3>
+            <div class="camera-view">
+                <div class="stereo-container">
+                    <div class="camera-feed" id="leftCamera">
+                        <div class="camera-label">Left</div>
+                    </div>
+                    <div class="camera-feed" id="rightCamera">
+                        <div class="camera-label">Right</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 3D Trajectory -->
+        <div class="panel">
+            <h3>3D Trajectory & Map</h3>
+            <div class="trajectory-3d">
+                <svg width="100%" height="100%" id="trajectorySvg">
+                    <defs>
+                        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                            <path d="M 20 0 L 0 0 0 20" class="grid-line"/>
+                        </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#grid)" opacity="0.1"/>
+                    <g id="trajectoryGroup"></g>
+                </svg>
+            </div>
+        </div>
+        
+        <!-- System Status -->
+        <div class="panel">
+            <h3>System Status</h3>
+            <div class="status-panel">
+                <div class="metric-group">
+                    <h4 style="color: #64ffda; margin-bottom: 10px;">Navigation State</h4>
+                    <div class="metric">
+                        <span class="metric-label">Position X:</span>
+                        <span class="metric-value" id="posX">0.00 m</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Position Y:</span>
+                        <span class="metric-value" id="posY">0.00 m</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Position Z:</span>
+                        <span class="metric-value" id="posZ">0.00 m</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Velocity:</span>
+                        <span class="metric-value" id="velocity">0.00 m/s</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Features:</span>
+                        <span class="metric-value" id="featureCount">0</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Keyframes:</span>
+                        <span class="metric-value" id="keyframeCount">0</span>
+                    </div>
+                    
+                    <h4 style="color: #64ffda; margin: 15px 0 10px 0;">System Health</h4>
+                    <div class="metric">
+                        <span class="metric-label">Vision:</span>
+                        <span class="metric-value" id="visionHealth">100%</span>
+                    </div>
+                    <div class="health-bar">
+                        <div class="health-fill" id="visionBar" style="width: 100%"></div>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">IMU:</span>
+                        <span class="metric-value" id="imuHealth">100%</span>
+                    </div>
+                    <div class="health-bar">
+                        <div class="health-fill" id="imuBar" style="width: 100%"></div>
+                    </div>
+                </div>
+                
+                <div class="metric-group">
+                    <h4 style="color: #64ffda; margin-bottom: 10px;">IMU Data</h4>
+                    <div class="imu-display">
+                        <div class="imu-axis">
+                            <span class="axis-label">Gyr X:</span>
+                            <div class="axis-bar">
+                                <div class="axis-value gyro-x" id="gyroX" style="width: 50%; left: 50%"></div>
+                            </div>
+                            <span id="gyroXVal">0.00</span>
+                        </div>
+                        <div class="imu-axis">
+                            <span class="axis-label">Gyr Y:</span>
+                            <div class="axis-bar">
+                                <div class="axis-value gyro-y" id="gyroY" style="width: 50%; left: 50%"></div>
+                            </div>
+                            <span id="gyroYVal">0.00</span>
+                        </div>
+                        <div class="imu-axis">
+                            <span class="axis-label">Gyr Z:</span>
+                            <div class="axis-bar">
+                                <div class="axis-value gyro-z" id="gyroZ" style="width: 50%; left: 50%"></div>
+                            </div>
+                            <span id="gyroZVal">0.00</span>
+                        </div>
+                        
+                        <div class="imu-axis" style="margin-top: 10px;">
+                            <span class="axis-label">Acc X:</span>
+                            <div class="axis-bar">
+                                <div class="axis-value accel-x" id="accelX" style="width: 50%; left: 50%"></div>
+                            </div>
+                            <span id="accelXVal">0.00</span>
+                        </div>
+                        <div class="imu-axis">
+                            <span class="axis-label">Acc Y:</span>
+                            <div class="axis-bar">
+                                <div class="axis-value accel-y" id="accelY" style="width: 50%; left: 50%"></div>
+                            </div>
+                            <span id="accelYVal">0.00</span>
+                        </div>
+                        <div class="imu-axis">
+                            <span class="axis-label">Acc Z:</span>
+                            <div class="axis-bar">
+                                <div class="axis-value accel-z" id="accelZ" style="width: 50%; left: 50%"></div>
+                            </div>
+                            <span id="accelZVal">-9.81</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Occupancy Map -->
+        <div class="panel">
+            <h3>Occupancy Grid</h3>
+            <div class="occupancy-map">
+                <svg width="100%" height="100%" id="occupancySvg">
+                    <rect width="100%" height="100%" fill="url(#grid)" opacity="0.05"/>
+                    <g id="occupancyGroup"></g>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // VIO Simulation State
+        let isRunning = false;
+        let showFeatures = true;
+        let simulationTime = 0;
+        let position = {x: 0, y: 0, z: 0};
+        let velocity = {x: 0, y: 0, z: 0};
+        let trajectory = [];
+        let keyframes = [];
+        let features = [];
+        let imuData = {gyro: {x: 0, y: 0, z: 0}, accel: {x: 0, y: 0, z: -9.81}};
+        let featureCount = 0;
+        let systemHealth = {vision: 1.0, imu: 1.0};
+        
+        // Animation frame
+        let animationId;
+        
+        function toggleSimulation() {
+            isRunning = !isRunning;
+            const btn = document.querySelector('.btn');
+            if (isRunning) {
+                btn.textContent = 'Stop VIO';
+                btn.classList.add('active');
+                startSimulation();
+            } else {
+                btn.textContent = 'Start VIO';
+                btn.classList.remove('active');
+                stopSimulation();
+            }
+        }
+        
+        function resetSystem() {
+            stopSimulation();
+            simulationTime = 0;
+            position = {x: 0, y: 0, z: 0};
+            velocity = {x: 0, y: 0, z: 0};
+            trajectory = [];
+            keyframes = [];
+            features = [];
+            featureCount = 0;
+            systemHealth = {vision: 1.0, imu: 1.0};
+            
+            // Clear visualizations
+            document.getElementById('trajectoryGroup').innerHTML = '';
+            document.getElementById('occupancyGroup').innerHTML = '';
+            document.getElementById('leftCamera').innerHTML = '<div class="camera-label">Left</div>';
+            document.getElementById('rightCamera').innerHTML = '<div class="camera-label">Right</div>';
+            
+            updateStatusDisplay();
+        }
+        
+        function toggleFeatures() {
+            showFeatures = !showFeatures;
+            const btn = document.querySelectorAll('.btn')[2];
+            btn.classList.toggle('active');
+        }
+        
+        function startSimulation() {
+            function simulate() {
+                if (!isRunning) return;
+                
+                simulationTime += 0.016; // ~60 FPS
+                
+                // Simulate VIO motion (figure-8 pattern)
+                const t = simulationTime * 0.5;
+                const radius = 3;
+                position.x = radius * Math.sin(t);
+                position.y = radius * Math.sin(2 * t) / 2;
+                position.z = 0.1 * Math.sin(3 * t);
+                
+                // Calculate velocity
+                velocity.x = radius * 0.5 * Math.cos(t);
+                velocity.y = radius * Math.cos(2 * t);
+                velocity.z = 0.3 * Math.cos(3 * t);
+                
+                // Add to trajectory
+                trajectory.push({...position});
+                if (trajectory.length > 500) trajectory.shift();
+                
+                // Simulate keyframes (every 30 frames)
+                if (Math.floor(simulationTime * 60) % 30 === 0) {
+                    keyframes.push({...position});
+                    if (keyframes.length > 20) keyframes.shift();
+                }
+                
+                // Simulate IMU data
+                imuData.gyro.x = 0.1 * Math.sin(t * 2) + (Math.random() - 0.5) * 0.02;
+                imuData.gyro.y = 0.1 * Math.cos(t * 1.5) + (Math.random() - 0.5) * 0.02;
+                imuData.gyro.z = 0.05 * Math.sin(t * 3) + (Math.random() - 0.5) * 0.02;
+                
+                imuData.accel.x = velocity.x * 0.1 + (Math.random() - 0.5) * 0.1;
+                imuData.accel.y = velocity.y * 0.1 + (Math.random() - 0.5) * 0.1;
+                imuData.accel.z = -9.81 + 0.1 * Math.sin(t * 4) + (Math.random() - 0.5) * 0.1;
+                
+                // Simulate features
+                generateFeatures();
+                
+                // Simulate system health
+                systemHealth.vision = 0.8 + 0.2 * Math.sin(t * 0.5);
+                systemHealth.imu = 0.9 + 0.1 * Math.cos(t * 0.3);
+                
+                // Update displays
+                updateCameraView();
+                updateTrajectoryView();
+                updateOccupancyMap();
+                updateStatusDisplay();
+                updateIMUDisplay();
+                
+                animationId = requestAnimationFrame(simulate);
+            }
+            simulate();
+        }
+        
+        function stopSimulation() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+        }
+        
+        function generateFeatures() {
+            features = [];
+            featureCount = Math.floor(50 + 30 * Math.sin(simulationTime));
+            
+            for (let i = 0; i < featureCount; i++) {
+                features.push({
+                    x: Math.random() * 100,
+                    y: Math.random() * 100,
+                    tracked: Math.random() > 0.3,
+                    disparity: Math.random() * 20 + 5
+                });
+            }
+        }
+        
+        function updateCameraView() {
+            if (!showFeatures) return;
+            
+            const leftCamera = document.getElementById('leftCamera');
+            const rightCamera = document.getElementById('rightCamera');
+            
+            // Clear previous features
+            leftCamera.innerHTML = '<div class="camera-label">Left</div>';
+            rightCamera.innerHTML = '<div class="camera-label">Right</div>';
+            
+            // Add feature points
+            features.forEach(feature => {
+                // Left camera feature
+                const leftFeature = document.createElement('div');
+                leftFeature.className = feature.tracked ? 'feature-point tracked-feature' : 'feature-point';
+                leftFeature.style.left = feature.x + '%';
+                leftFeature.style.top = feature.y + '%';
+                leftCamera.appendChild(leftFeature);
+                
+                // Right camera feature (with disparity)
+                const rightFeature = document.createElement('div');
+                rightFeature.className = feature.tracked ? 'feature-point tracked-feature' : 'feature-point';
+                rightFeature.style.left = Math.max(0, feature.x - feature.disparity) + '%';
+                rightFeature.style.top = feature.y + '%';
+                rightCamera.appendChild(rightFeature);
+            });
+        }
+        
+        function updateTrajectoryView() {
+            const svg = document.getElementById('trajectorySvg');
+            const group = document.getElementById('trajectoryGroup');
+            const rect = svg.getBoundingClientRect();
+            
+            group.innerHTML = '';
+            
+            if (trajectory.length < 2) return;
+            
+            // Scale and center the trajectory
+            const scale = Math.min(rect.width, rect.height) * 0.1;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            
+            // Draw trajectory path
+            let pathData = '';
+            trajectory.forEach((point, index) => {
+                const x = centerX + point.x * scale;
+                const y = centerY + point.y * scale;
+                pathData += (index === 0 ? 'M' : 'L') + x + ',' + y;
+            });
+            
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', pathData);
+            path.setAttribute('class', 'path-line');
+            group.appendChild(path);
+            
+            // Draw keyframes
+            keyframes.forEach(kf => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', centerX + kf.x * scale);
+                circle.setAttribute('cy', centerY + kf.y * scale);
+                circle.setAttribute('r', 4);
+                circle.setAttribute('class', 'keyframe');
+                group.appendChild(circle);
+            });
+            
+            // Draw current position
+            if (trajectory.length > 0) {
+                const current = trajectory[trajectory.length - 1];
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', centerX + current.x * scale);
+                circle.setAttribute('cy', centerY + current.y * scale);
+                circle.setAttribute('r', 6);
+                circle.setAttribute('class', 'current-position');
+                group.appendChild(circle);
+            }
+        }
+        
+        function updateOccupancyMap() {
+            const group = document.getElementById('occupancyGroup');
+            const svg = document.getElementById('occupancySvg');
+            const rect = svg.getBoundingClientRect();
+            
+            group.innerHTML = '';
+            
+            // Simulate occupancy grid around current position
+            const cellSize = 8;
+            const gridSize = 20;
+            
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    if (Math.random() > 0.7) { // 30% chance of obstacle
+                        const cell = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        cell.setAttribute('x', i * cellSize + 20);
+                        cell.setAttribute('y', j * cellSize + 20);
+                        cell.setAttribute('width', cellSize);
+                        cell.setAttribute('height', cellSize);
+                        cell.setAttribute('class', Math.random() > 0.5 ? 'occupied-cell' : 'free-cell');
+                        group.appendChild(cell);
+                    }
+                }
+            }
+        }
+        
+        function updateStatusDisplay() {
+            document.getElementById('posX').textContent = position.x.toFixed(2) + ' m';
+            document.getElementById('posY').textContent = position.y.toFixed(2) + ' m';
+            document.getElementById('posZ').textContent = position.z.toFixed(2) + ' m';
+            
+            const speed = Math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2);
+            document.getElementById('velocity').textContent = speed.toFixed(2) + ' m/s';
+            
+            document.getElementById('featureCount').textContent = featureCount;
+            document.getElementById('keyframeCount').textContent = keyframes.length;
+            
+            document.getElementById('visionHealth').textContent = Math.round(systemHealth.vision * 100) + '%';
+            document.getElementById('imuHealth').textContent = Math.round(systemHealth.imu * 100) + '%';
+            
+            document.getElementById('visionBar').style.width = (systemHealth.vision * 100) + '%';
+            document.getElementById('imuBar').style.width = (systemHealth.imu * 100) + '%';
+        }
+        
+        function updateIMUDisplay() {
+            // Gyro data
+            updateIMUAxis('gyroX', 'gyroXVal', imuData.gyro.x, 0.5);
+            updateIMUAxis('gyroY', 'gyroYVal', imuData.gyro.y, 0.5);
+            updateIMUAxis('gyroZ', 'gyroZVal', imuData.gyro.z, 0.5);
+            
+            // Accel data
+            updateIMUAxis('accelX', 'accelXVal', imuData.accel.x, 10);
+            updateIMUAxis('accelY', 'accelYVal', imuData.accel.y, 10);
+            updateIMUAxis('accelZ', 'accelZVal', imuData.accel.z + 9.81, 10); // Remove gravity for display
+        }
+        
+        function updateIMUAxis(barId, valId, value, maxVal) {
+            const bar = document.getElementById(barId);
+            const valSpan = document.getElementById(valId);
+            
+            const normalizedValue = Math.max(-1, Math.min(1, value / maxVal));
+            const width = Math.abs(normalizedValue) * 50;
+            const left = normalizedValue >= 0 ? 50 : 50 - width;
+            
+            bar.style.width = width + '%';
+            bar.style.left = left + '%';
+            valSpan.textContent = value.toFixed(2);
+        }
+        
+        // Initialize
+        updateStatusDisplay();
+        updateIMUDisplay();
+    </script>
+</body>
+</html>
